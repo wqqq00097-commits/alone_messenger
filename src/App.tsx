@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import {
   decryptText,
@@ -7,6 +7,7 @@ import {
   exportPublicKey,
   generateEcdhKeyPair,
 } from './lib/crypto'
+import { connectWebSocket, ServerMessage } from './lib/network'
 
 type Message = {
   id: number
@@ -15,7 +16,6 @@ type Message = {
 }
 
 function App() {
-  const [peerId] = useState('peer-device')
   const [localName, setLocalName] = useState('Me')
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: 'Привет! Это защищённый чат.', from: 'peer' },
@@ -24,7 +24,9 @@ function App() {
   const [publicKey, setPublicKey] = useState('')
   const [peerPublicKey, setPeerPublicKey] = useState('')
   const [sharedKey, setSharedKey] = useState<CryptoKey | null>(null)
-  const [status, setStatus] = useState('Готово к обмену ключами')
+  const [status, setStatus] = useState('Готово к обмену ключами и со связью с сервером')
+  const [connected, setConnected] = useState(false)
+  const socketRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -42,7 +44,29 @@ function App() {
 
     return () => {
       cancelled = true
+      socketRef.current?.close()
     }
+  }, [])
+
+  useEffect(() => {
+    const serverUrl = import.meta.env.VITE_WS_SERVER || 'ws://192.168.0.152:3000'
+
+    void connectWebSocket(serverUrl, (message) => {
+      if (message.type === 'chat') {
+        setMessages((current) => [
+          ...current,
+          { id: Date.now(), text: message.payload, from: 'peer' },
+        ])
+        setStatus('Получено сообщение от сервера')
+      }
+    }).then((socket) => {
+      socketRef.current = socket
+      setConnected(true)
+      setStatus(`Подключено к серверу ${serverUrl}`)
+    }).catch((error) => {
+      console.error('WebSocket connect error', error)
+      setStatus('Не удалось подключиться к серверу')
+    })
   }, [])
 
   const keySummary = useMemo(() => {
@@ -72,25 +96,19 @@ function App() {
       setStatus('Сначала выполните обмен ключами')
       return
     }
+    if (!connected || !socketRef.current) {
+      setStatus('Нет соединения с сервером')
+      return
+    }
 
     const payload = await encryptText(draft.trim(), sharedKey)
     const encrypted = `${payload.iv}:${payload.cipherText}`
-    const incoming = {
-      id: Date.now(),
-      text: encrypted,
-      from: 'me' as const,
-    }
+    const messagePayload = JSON.stringify({ type: 'chat', payload: encrypted })
 
-    setMessages((current) => [...current, incoming])
+    socketRef.current.send(messagePayload)
+    setMessages((current) => [...current, { id: Date.now(), text: encrypted, from: 'me' }])
     setDraft('')
-    setStatus('Сообщение отправлено и зашифровано')
-
-    const peerReply = {
-      id: Date.now() + 1,
-      text: `Секретный ответ: ${encrypted.slice(0, 32)}…`,
-      from: 'peer' as const,
-    }
-    setMessages((current) => [...current, peerReply])
+    setStatus('Сообщение отправлено на сервер и доставлено участнику')
   }
 
   async function handleDecrypt(message: Message) {
@@ -142,7 +160,7 @@ function App() {
         <div className="card">
           <div className="chat-header">
             <strong>{localName}</strong>
-            <span>{peerId}</span>
+            <span>{connected ? 'Сервер online' : 'Сервер offline'}</span>
           </div>
 
           <div className="messages">

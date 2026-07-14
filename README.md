@@ -1,33 +1,60 @@
-# React + TypeScript + Vite
+# Messenger with P2P encryption and relay server
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This project includes:
+- React + TypeScript web client
+- Capacitor Android wrapper
+- WebSocket relay server for remote chat
+- ECDH key exchange and AES-GCM message encryption
 
-Currently, two official plugins are available:
+## Server setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Install dependencies:
+   ```powershell
+   npm install
+   cd server
+   npm install
+   ```
 
-## React Compiler
+2. Run the relay server:
+   ```powershell
+   cd server
+   node index.js
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+3. To use the server from remote clients, run it on a public IP or cloud VM and open TCP port `3000`.
 
-## Expanding the Oxlint configuration
+## Client setup
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+1. Install dependencies from project root:
+   ```powershell
+   npm install
+   ```
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+2. Set server URL in `.env` (default is `ws://192.168.0.152:3000`):
+   ```text
+   VITE_WS_SERVER=ws://your-server-ip:3000
+   ```
+
+3. Run the web client:
+   ```powershell
+   npm run dev
+   ```
+
+## Windows server installer
+
+Run from the project root:
+```powershell
+cd server
+./install-server.ps1
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
-# alone_messenger
+Then launch the server:
+```powershell
+node index.js
+```
+
+## Notes
+
+- For production, host the server on a public IP or cloud VM.
+- Use HTTPS/WSS and proper SSL certs for public deployments.
+- If you want real P2P without server relay, add WebRTC signaling and direct peer connection.
